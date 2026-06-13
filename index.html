@@ -1175,7 +1175,7 @@ function fmtW(n) {
   }
   return '₩' + Math.round(n).toLocaleString('ko-KR') + '원';
 }
-function esc(s) { return (s||'').replace(/"/g, '&quot;'); }
+function esc(s) { return (String(s||'')).replace(/"/g, '&quot;'); }
 
 function fmtInput(el) {
   // Format input as thousand-separated while typing
