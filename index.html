@@ -1457,7 +1457,7 @@ async function saveToSheet() {
   const grand = rows.reduce((s, r) => s + getRowTotal(r), 0);
   const rowData = rows.map(r => [
     r.broker, r.account, r.type, r.name,
-    resolveTickerByName(r.name, r.type), r.sector,
+    r.ticker || resolveTickerByName(r.name, r.type), r.sector,
     r.qty, r.avgPrice, r.currentPrice ?? '', r.cash
   ]);
 
