@@ -535,11 +535,17 @@
 <div class="status-bar" id="statusBar"></div>
 
 <!-- CHARTS -->
-<div class="charts-row">
+<div class="charts-row" style="grid-template-columns: 1fr 1fr 2fr">
   <div class="chart-card">
-    <div class="chart-title">자산 구성</div>
+    <div class="chart-title">자산 구성 (종류별)</div>
     <div class="chart-container" style="height:220px">
       <canvas id="donutChart"></canvas>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">종목별 비중</div>
+    <div class="chart-container" style="height:220px">
+      <canvas id="stockDonutChart"></canvas>
     </div>
   </div>
   <div class="chart-card">
@@ -613,6 +619,7 @@ let rows = [];       // portfolio rows
 let monthlyHistory = [];  // [{month:'2025-01', total:xxx}, ...]
 let scriptUrl = '';
 let donutChart = null;
+let stockDonutChart = null;
 let lineChart = null;
 let lastTotal = null;
 
@@ -950,6 +957,50 @@ function updateCharts() {
             labels: { color: '#94A3B8', font: { size: 11 }, padding: 10, boxWidth: 10 }
           },
           tooltip: { callbacks: { label: ctx => ' ' + fmtW(ctx.raw) } }
+        }
+      }
+    });
+  }
+
+  // 종목별 비중 도넛
+  const priceable = rows.filter(r => r.type !== '예수금' && r.name);
+  const grandTotal2 = rows.reduce((s, r) => s + getRowTotal(r), 0);
+  const stockLabels = priceable.map(r => r.name);
+  const stockValues = priceable.map(r => getRowTotal(r));
+  const stockColors = ['#6C8EFF','#00D4AA','#FFB347','#FF4D6D','#A78BFA','#34D399','#FB923C','#60A5FA','#F472B6','#FBBF24','#4ADE80','#E879F9'];
+
+  const stockDonutData = {
+    labels: stockLabels,
+    datasets: [{
+      data: stockValues,
+      backgroundColor: stockColors.slice(0, stockLabels.length),
+      borderWidth: 0,
+      hoverOffset: 6
+    }]
+  };
+
+  if (stockDonutChart) {
+    stockDonutChart.data = stockDonutData;
+    stockDonutChart.update();
+  } else {
+    stockDonutChart = new Chart(document.getElementById('stockDonutChart'), {
+      type: 'doughnut',
+      data: stockDonutData,
+      options: {
+        cutout: '60%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: '#94A3B8', font: { size: 10 }, padding: 6, boxWidth: 8 }
+          },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const pct = grandTotal2 > 0 ? (ctx.raw / grandTotal2 * 100).toFixed(1) : 0;
+                return ' ' + fmtW(ctx.raw) + ' (' + pct + '%)';
+              }
+            }
+          }
         }
       }
     });
