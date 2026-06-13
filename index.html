@@ -516,13 +516,13 @@
         <th class="required">종목명</th>
         <th>티커 (자동)</th>
         <th>산업군</th>
-        <th>수량</th>
-        <th>매수평균가</th>
-        <th>매입금액</th>
-        <th>현재가</th>
-        <th>평가금액</th>
-        <th>수익률</th>
-        <th>비중</th>
+        <th onclick="sortRows('qty')" style="cursor:pointer" title="정렬">수량 ⇅</th>
+        <th onclick="sortRows('avgPrice')" style="cursor:pointer" title="정렬">매수평균가 ⇅</th>
+        <th onclick="sortRows('buyTotal')" style="cursor:pointer" title="정렬">매입금액 ⇅</th>
+        <th onclick="sortRows('currentPrice')" style="cursor:pointer" title="정렬">현재가 ⇅</th>
+        <th onclick="sortRows('evalTotal')" style="cursor:pointer" title="정렬">평가금액 ⇅</th>
+        <th onclick="sortRows('pnl')" style="cursor:pointer" title="정렬">수익률 ⇅</th>
+        <th onclick="sortRows('weight')" style="cursor:pointer" title="정렬">비중 ⇅</th>
         <th>예수금</th>
         <th></th>
       </tr>
@@ -616,6 +616,38 @@
 // STATE
 // ═══════════════════════════════════════════════════════════
 let rows = [];       // portfolio rows
+let sortKey = null;
+let sortAsc = false;
+
+function sortRows(key) {
+  if (sortKey === key) { sortAsc = !sortAsc; }
+  else { sortKey = key; sortAsc = false; }
+
+  rows.sort((a, b) => {
+    let av, bv;
+    const grandTotal = rows.reduce((s, r) => s + getRowTotal(r), 0);
+    const getBuyTotal = r => (Number(r.qty)||0) * (Number(r.avgPrice)||0);
+    const getEvalTotal = r => r.currentPrice != null ? (Number(r.qty)||0) * r.currentPrice : getBuyTotal(r);
+    const getPnl = r => {
+      const bt = getBuyTotal(r), et = getEvalTotal(r);
+      return bt > 0 ? (et - bt) / bt * 100 : 0;
+    };
+    switch(key) {
+      case 'qty': av = Number(a.qty)||0; bv = Number(b.qty)||0; break;
+      case 'avgPrice': av = Number(a.avgPrice)||0; bv = Number(b.avgPrice)||0; break;
+      case 'buyTotal': av = getBuyTotal(a); bv = getBuyTotal(b); break;
+      case 'currentPrice': av = a.currentPrice||0; bv = b.currentPrice||0; break;
+      case 'evalTotal': av = getEvalTotal(a); bv = getEvalTotal(b); break;
+      case 'pnl': av = getPnl(a); bv = getPnl(b); break;
+      case 'weight': av = getRowTotal(a); bv = getRowTotal(b); break;
+      default: av = 0; bv = 0;
+    }
+    return sortAsc ? av - bv : bv - av;
+  });
+  renderTable();
+  updateSummary();
+  updateCharts();
+}
 let monthlyHistory = [];  // [{month:'2025-01', total:xxx}, ...]
 let scriptUrl = '';
 let donutChart = null;
@@ -942,23 +974,42 @@ function updateCharts() {
     }]
   };
 
+  const donutOptions = {
+    cutout: '65%',
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          color: '#94A3B8', font: { size: 11 }, padding: 10, boxWidth: 10,
+          generateLabels: chart => {
+            const data = chart.data;
+            const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+            return data.labels.map((label, i) => ({
+              text: label + ' ' + (total > 0 ? (data.datasets[0].data[i]/total*100).toFixed(1) : 0) + '%',
+              fillStyle: data.datasets[0].backgroundColor[i],
+              hidden: false,
+              index: i
+            }));
+          }
+        }
+      },
+      tooltip: { callbacks: { label: ctx => {
+        const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+        const pct = total > 0 ? (ctx.raw/total*100).toFixed(1) : 0;
+        return ' ' + fmtW(ctx.raw) + ' (' + pct + '%)';
+      }}}
+    }
+  };
+
   if (donutChart) {
     donutChart.data = donutData;
+    donutChart.options = donutOptions;
     donutChart.update();
   } else {
     donutChart = new Chart(document.getElementById('donutChart'), {
       type: 'doughnut',
       data: donutData,
-      options: {
-        cutout: '65%',
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: { color: '#94A3B8', font: { size: 11 }, padding: 10, boxWidth: 10 }
-          },
-          tooltip: { callbacks: { label: ctx => ' ' + fmtW(ctx.raw) } }
-        }
-      }
+      options: donutOptions
     });
   }
 
