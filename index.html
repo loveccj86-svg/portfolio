@@ -1405,7 +1405,9 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 // ═══════════════════════════════════════════════════════════
 (function init() {
   // Check saved script URL
-  const saved = localStorage.getItem('portfolioScriptUrl');
+  // URL 하드코딩 - 어느 기기에서도 자동 연결
+  const HARDCODED_URL = 'https://script.google.com/macros/s/AKfycbyzFDe9IP5iLC40tgxbqZAwDJsGkgJhGjGa-jKAJNykzHzvAKYVGAJV9GG2Pi0HvFN-bA/exec';
+  const saved = localStorage.getItem('portfolioScriptUrl') || HARDCODED_URL;
   if (saved) {
     document.getElementById('scriptUrlInput').value = saved;
     scriptUrl = saved;
