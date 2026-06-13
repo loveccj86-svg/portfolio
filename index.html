@@ -963,7 +963,7 @@ function renderTable() {
       <td><input type="text" value="${r.avgPrice ? Number(r.avgPrice).toLocaleString('ko-KR') : ''}" placeholder="0" data-field="avgPrice" style="min-width:80px" inputmode="numeric" oninput="fmtInput(this)"></td>
       <td class="td-mono">${buyTotal > 0 ? fmtW(buyTotal) : '—'}</td>
       <td>${priceHtml}</td>
-      <td class="td-mono">${evalTotal != null ? fmtW(evalTotal) : (isFixedType(r)?fmtW(Number(r.cash)||0):'—')}</td>
+      <td class="td-mono" style="${r.type==='대출'?'color:var(--accent-red)':''}">${evalTotal != null ? fmtW(evalTotal) : (isFixedType(r)?(r.type==='대출'?`<span style="color:var(--accent-red)">-${fmtW(Number(r.cash)||0)}</span>`:fmtW(Number(r.cash)||0)):'—')}</td>
       <td>${pnlHtml}</td>
       <td class="td-mono">${evalTotal != null && buyTotal > 0 ? `<span style="color:${evalTotal-buyTotal>=0?'var(--accent-green)':'var(--accent-red)'}">${evalTotal-buyTotal>=0?'+':''}${fmtW(evalTotal-buyTotal)}</span>` : '—'}</td>
       <td>
