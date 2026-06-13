@@ -908,8 +908,12 @@ function renderTable() {
     } else {
       // 수동 입력 가능한 input (자동조회 실패해도 직접 입력 가능)
       const priceVal = r.currentPrice != null ? Number(r.currentPrice).toLocaleString('ko-KR') : '';
-      const priceColor = r.priceStatus === 'err' ? 'color:var(--accent-red)' : '';
-      priceHtml = `<input type="text" value="${priceVal}" placeholder="직접입력" data-field="currentPrice" inputmode="numeric" oninput="fmtInput(this)" style="min-width:80px;${priceColor}">`;
+      const isErr = r.priceStatus === 'err';
+      const priceStyle = isErr
+        ? 'min-width:80px;color:var(--accent-red);border-color:var(--accent-red);background:rgba(255,77,109,0.1)'
+        : 'min-width:80px';
+      const pricePlaceholder = isErr ? '⚠ 조회실패' : '직접입력';
+      priceHtml = `<input type="text" value="${priceVal}" placeholder="${pricePlaceholder}" data-field="currentPrice" inputmode="numeric" oninput="fmtInput(this)" style="${priceStyle}">`;
     }
 
     const pnlHtml = pnlPct != null
