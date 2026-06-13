@@ -513,12 +513,12 @@
     <thead>
       <tr>
         <th style="width:30px">#</th>
-        <th class="required">증권사</th>
-        <th>계좌번호</th>
-        <th class="required">종류</th>
-        <th class="required">종목명</th>
-        <th>티커 (자동)</th>
-        <th>산업군</th>
+        <th onclick="sortRows('broker')" style="cursor:pointer" title="정렬" class="required">증권사 ⇅</th>
+        <th onclick="sortRows('account')" style="cursor:pointer" title="정렬">계좌번호 ⇅</th>
+        <th onclick="sortRows('type')" style="cursor:pointer" title="정렬" class="required">종류 ⇅</th>
+        <th onclick="sortRows('name')" style="cursor:pointer" title="정렬" class="required">종목명 ⇅</th>
+        <th onclick="sortRows('ticker')" style="cursor:pointer" title="정렬">티커 ⇅</th>
+        <th onclick="sortRows('sector')" style="cursor:pointer" title="정렬">산업군 ⇅</th>
         <th onclick="sortRows('qty')" style="cursor:pointer" title="정렬">수량 ⇅</th>
         <th onclick="sortRows('avgPrice')" style="cursor:pointer" title="정렬">매수평균가 ⇅</th>
         <th onclick="sortRows('buyTotal')" style="cursor:pointer" title="정렬">매입금액 ⇅</th>
@@ -526,7 +526,7 @@
         <th onclick="sortRows('evalTotal')" style="cursor:pointer" title="정렬">평가금액 ⇅</th>
         <th onclick="sortRows('pnl')" style="cursor:pointer" title="정렬">수익률 ⇅</th>
         <th onclick="sortRows('weight')" style="cursor:pointer" title="정렬">비중 ⇅</th>
-        <th>예수금</th>
+        <th onclick="sortRows('cash')" style="cursor:pointer" title="정렬">예수금 ⇅</th>
         <th></th>
       </tr>
     </thead>
@@ -538,22 +538,29 @@
 <div class="status-bar" id="statusBar"></div>
 
 <!-- CHARTS -->
-<div class="charts-row" style="grid-template-columns: 1fr 1fr 2fr">
+<div class="charts-row" style="grid-template-columns: 1fr 1fr 1fr">
   <div class="chart-card">
     <div class="chart-title">자산 구성 (종류별)</div>
-    <div class="chart-container" style="height:260px">
-      <canvas id="donutChart"></canvas>
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <div class="chart-container" style="height:220px;flex:1;min-width:0">
+        <canvas id="donutChart"></canvas>
+      </div>
+      <div id="donutSummary" style="font-size:11px;color:var(--text-muted);min-width:110px;padding-top:8px;line-height:1.9"></div>
     </div>
   </div>
   <div class="chart-card">
     <div class="chart-title">종목별 비중</div>
-    <div class="chart-container" style="height:260px">
-      <canvas id="stockDonutChart"></canvas>
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <div class="chart-container" style="height:220px;flex:1;min-width:0">
+        <canvas id="stockDonutChart"></canvas>
+      </div>
+      <div id="stockSummary" style="font-size:11px;color:var(--text-muted);min-width:110px;padding-top:8px;line-height:1.9"></div>
     </div>
   </div>
   <div class="chart-card">
     <div class="chart-title">월별 순자산 추이</div>
-    <div class="chart-container" style="height:220px">
+    <div id="historySummary" style="font-size:11px;color:var(--text-muted);margin-bottom:8px;line-height:1.9"></div>
+    <div class="chart-container" style="height:200px">
       <canvas id="lineChart"></canvas>
     </div>
   </div>
@@ -626,15 +633,18 @@ function sortRows(key) {
   if (sortKey === key) { sortAsc = !sortAsc; }
   else { sortKey = key; sortAsc = false; }
 
+  const getBuyTotal = r => (Number(r.qty)||0) * (Number(r.avgPrice)||0);
+  const getEvalTotal = r => r.currentPrice != null ? (Number(r.qty)||0) * r.currentPrice : getBuyTotal(r);
+  const getPnl = r => { const bt = getBuyTotal(r), et = getEvalTotal(r); return bt > 0 ? (et-bt)/bt*100 : 0; };
+  const strKeys = ['broker','account','type','name','ticker','sector'];
+
   rows.sort((a, b) => {
     let av, bv;
-    const grandTotal = rows.reduce((s, r) => s + getRowTotal(r), 0);
-    const getBuyTotal = r => (Number(r.qty)||0) * (Number(r.avgPrice)||0);
-    const getEvalTotal = r => r.currentPrice != null ? (Number(r.qty)||0) * r.currentPrice : getBuyTotal(r);
-    const getPnl = r => {
-      const bt = getBuyTotal(r), et = getEvalTotal(r);
-      return bt > 0 ? (et - bt) / bt * 100 : 0;
-    };
+    if (strKeys.includes(key)) {
+      av = (a[key]||'').toLowerCase();
+      bv = (b[key]||'').toLowerCase();
+      return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+    }
     switch(key) {
       case 'qty': av = Number(a.qty)||0; bv = Number(b.qty)||0; break;
       case 'avgPrice': av = Number(a.avgPrice)||0; bv = Number(b.avgPrice)||0; break;
@@ -643,6 +653,7 @@ function sortRows(key) {
       case 'evalTotal': av = getEvalTotal(a); bv = getEvalTotal(b); break;
       case 'pnl': av = getPnl(a); bv = getPnl(b); break;
       case 'weight': av = getRowTotal(a); bv = getRowTotal(b); break;
+      case 'cash': av = Number(a.cash)||0; bv = Number(b.cash)||0; break;
       default: av = 0; bv = 0;
     }
     return sortAsc ? av - bv : bv - av;
@@ -981,6 +992,7 @@ function updateSummary() {
 function updateCharts() {
   const totals = { stock: 0, coin: 0, rp: 0, cash: 0 };
   rows.forEach(r => { totals[categorize(r)] += getRowTotal(r); });
+  const totals2 = totals; // alias for summary section
 
   // Donut
   const donutData = {
@@ -1118,6 +1130,7 @@ function updateCharts() {
     .sort((a, b) => a.month.localeCompare(b.month))
   ];
   if (grand > 0) histDisplay.push({ month: ym + ' (현재)', total: grand });
+  const histDisplay2 = histDisplay; // alias for summary section
 
   const labels = histDisplay.map(h => h.month);
   const values = histDisplay.map(h => h.total);
@@ -1166,6 +1179,58 @@ function updateCharts() {
         }
       }
     });
+  }
+
+  // ── 자산구성 텍스트 요약
+  const donutSummary = document.getElementById('donutSummary');
+  if (donutSummary) {
+    const grandT = rows.reduce((s,r) => s+getRowTotal(r), 0);
+    const cats = [
+      { label:'주식', color:'#6C8EFF', val: totals2.stock },
+      { label:'코인', color:'#00D4AA', val: totals2.coin },
+      { label:'RP·ISA', color:'#FFB347', val: totals2.rp },
+      { label:'예수금', color:'#94A3B8', val: totals2.cash },
+    ];
+    donutSummary.innerHTML = cats.map(c => {
+      const pct = grandT > 0 ? (c.val/grandT*100).toFixed(1) : '0.0';
+      return `<div style="display:flex;justify-content:space-between;gap:8px">
+        <span style="color:${c.color}">● ${c.label}</span>
+        <span style="color:var(--text-primary);font-family:var(--mono)">${fmtW(c.val)}<br><span style="color:var(--text-muted)">${pct}%</span></span>
+      </div>`;
+    }).join('');
+  }
+
+  // ── 종목별 비중 텍스트 요약
+  const stockSummaryEl = document.getElementById('stockSummary');
+  if (stockSummaryEl) {
+    const grandT2 = rows.reduce((s,r) => s+getRowTotal(r), 0);
+    const colors2 = ['#6C8EFF','#00D4AA','#FFB347','#FF4D6D','#A78BFA','#34D399','#FB923C','#60A5FA','#F472B6','#FBBF24','#4ADE80','#E879F9'];
+    const priceableRows = rows.filter(r => r.name);
+    stockSummaryEl.innerHTML = priceableRows.map((r, i) => {
+      const val = getRowTotal(r);
+      const pct = grandT2 > 0 ? (val/grandT2*100).toFixed(1) : '0.0';
+      const col = colors2[i % colors2.length];
+      return `<div style="display:flex;justify-content:space-between;gap:8px">
+        <span style="color:${col}">● ${r.name}</span>
+        <span style="color:var(--text-primary);font-family:var(--mono)">${fmtW(val)}<br><span style="color:var(--text-muted)">${pct}%</span></span>
+      </div>`;
+    }).join('');
+  }
+
+  // ── 월별 순자산 텍스트 요약
+  const historySummaryEl = document.getElementById('historySummary');
+  if (historySummaryEl && histDisplay2.length > 0) {
+    const latest = histDisplay2[histDisplay2.length - 1];
+    const prev = histDisplay2.length > 1 ? histDisplay2[histDisplay2.length - 2] : null;
+    const change = prev ? latest.total - prev.total : null;
+    const changePct = prev && prev.total > 0 ? ((change / prev.total) * 100).toFixed(1) : null;
+    let html = `<span style="color:var(--text-primary);font-family:var(--mono);font-size:13px">${fmtW(latest.total)}</span>`;
+    if (change !== null) {
+      const col = change >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+      html += ` <span style="color:${col};font-family:var(--mono)">${change >= 0 ? '+' : ''}${fmtW(Math.abs(change))} (${changePct}%)</span>`;
+    }
+    html += `<span style="color:var(--text-dim);margin-left:6px">${latest.month}</span>`;
+    historySummaryEl.innerHTML = html;
   }
 }
 
