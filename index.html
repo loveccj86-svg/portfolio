@@ -979,30 +979,46 @@ function updateCharts() {
     }]
   };
 
+  const stockDonutOptions = {
+    cutout: '60%',
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          color: '#94A3B8', font: { size: 10 }, padding: 6, boxWidth: 8,
+          generateLabels: chart => {
+            const data = chart.data;
+            const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+            return data.labels.map((label, i) => ({
+              text: label + ' ' + (total > 0 ? (data.datasets[0].data[i]/total*100).toFixed(1) : 0) + '%',
+              fillStyle: data.datasets[0].backgroundColor[i],
+              hidden: false,
+              index: i
+            }));
+          }
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+            const pct = total > 0 ? (ctx.raw / total * 100).toFixed(1) : 0;
+            return ' ' + fmtW(ctx.raw) + ' (' + pct + '%)';
+          }
+        }
+      }
+    }
+  };
+
   if (stockDonutChart) {
     stockDonutChart.data = stockDonutData;
+    stockDonutChart.options = stockDonutOptions;
     stockDonutChart.update();
   } else {
     stockDonutChart = new Chart(document.getElementById('stockDonutChart'), {
       type: 'doughnut',
       data: stockDonutData,
-      options: {
-        cutout: '60%',
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: { color: '#94A3B8', font: { size: 10 }, padding: 6, boxWidth: 8 }
-          },
-          tooltip: {
-            callbacks: {
-              label: ctx => {
-                const pct = grandTotal2 > 0 ? (ctx.raw / grandTotal2 * 100).toFixed(1) : 0;
-                return ' ' + fmtW(ctx.raw) + ' (' + pct + '%)';
-              }
-            }
-          }
-        }
-      }
+      options: stockDonutOptions
     });
   }
 
@@ -1012,7 +1028,23 @@ function updateCharts() {
   const ym = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
 
   // Build display history: past months from stored + current month live
-  let histDisplay = [...monthlyHistory.filter(h => h.month !== ym)];
+  // month 값이 timestamp 형식이면 YYYY-MM으로 변환
+  const cleanMonth = m => {
+    if (!m) return '';
+    const s = String(m);
+    if (s.length > 7) return s.substring(0, 7); // timestamp -> YYYY-MM
+    return s;
+  };
+  let histDisplay = [...monthlyHistory
+    .map(h => ({ month: cleanMonth(h.month), total: h.total }))
+    .filter(h => h.month && h.month !== ym)
+    .reduce((acc, h) => { // 중복 월 제거 (마지막 값 사용)
+      const idx = acc.findIndex(x => x.month === h.month);
+      if (idx >= 0) acc[idx] = h; else acc.push(h);
+      return acc;
+    }, [])
+    .sort((a, b) => a.month.localeCompare(b.month))
+  ];
   if (grand > 0) histDisplay.push({ month: ym + ' (현재)', total: grand });
 
   const labels = histDisplay.map(h => h.month);
