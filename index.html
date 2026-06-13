@@ -817,7 +817,7 @@ function renderTable() {
       <td class="td-mono td-muted" style="font-size:11px">${resolvedTicker || '—'}</td>
       <td><input type="text" value="${esc(r.sector)}" placeholder="반도체" data-field="sector" style="min-width:70px"></td>
       <td><input type="number" value="${r.qty||''}" placeholder="0" data-field="qty" style="min-width:60px"></td>
-      <td><input type="number" value="${r.avgPrice||''}" placeholder="0" data-field="avgPrice" style="min-width:80px"></td>
+      <td><input type="text" value="${r.avgPrice ? Number(r.avgPrice).toLocaleString('ko-KR') : ''}" placeholder="0" data-field="avgPrice" style="min-width:80px" inputmode="numeric" oninput="fmtInput(this)"></td>
       <td class="td-mono">${buyTotal > 0 ? fmtW(buyTotal) : '—'}</td>
       <td>${priceHtml}</td>
       <td class="td-mono">${evalTotal != null ? fmtW(evalTotal) : (r.type==='예수금'?fmtW(Number(r.cash)||0):'—')}</td>
@@ -836,7 +836,11 @@ function renderTable() {
     tr.querySelectorAll('[data-field]').forEach(el => {
       el.addEventListener('change', e => {
         const field = el.dataset.field;
-        r[field] = el.type === 'number' ? Number(el.value) : el.value;
+        if (field === 'avgPrice' || field === 'qty' || field === 'cash') {
+          r[field] = Number(el.value.replace(/,/g, '')) || 0;
+        } else {
+          r[field] = el.type === 'number' ? Number(el.value) : el.value;
+        }
         if (field === 'name' || field === 'type') {
           // re-resolve ticker silently
           renderTable();
