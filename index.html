@@ -436,11 +436,28 @@
 <!-- TOP BAR -->
 <div class="top-bar">
   <div class="total-block">
-    <div class="total-label">전체 순자산</div>
-    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
-      <div class="total-value" id="totalValue">₩ —</div>
-      <div id="cashRatioBadge" style="font-size:22px;font-weight:600;font-family:var(--mono);display:none"></div>
-      <div id="totalPnlBadge" style="font-size:16px;font-weight:600;font-family:var(--mono);display:none"></div>
+    <div style="display:flex;align-items:baseline;gap:20px;flex-wrap:wrap">
+      <!-- 전체 순자산 -->
+      <div>
+        <div class="total-label">전체 순자산</div>
+        <div class="total-value" id="totalValue">₩ —</div>
+      </div>
+      <!-- 투자 평가손익 / 비중 -->
+      <div id="pnlBlock" style="display:none">
+        <div class="total-label">투자 평가손익</div>
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <div id="totalPnlBadge" style="font-size:22px;font-weight:600;font-family:var(--mono)"></div>
+          <div id="investRatioBadge" style="font-size:13px;font-family:var(--mono);color:var(--text-muted)"></div>
+        </div>
+      </div>
+      <!-- 예수금 / 비중 -->
+      <div id="cashBlock" style="display:none">
+        <div class="total-label">예수금</div>
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <div id="cashAmtBadge" style="font-size:22px;font-weight:600;font-family:var(--mono)"></div>
+          <div id="cashRatioBadge" style="font-size:13px;font-weight:600;font-family:var(--mono)"></div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="top-actions">
@@ -1035,33 +1052,40 @@ function updateSummary() {
   // 예수금 비중 (RP+발행어음+ISA+예수금 합산)
   const cashTotal = rows.filter(isCashType).reduce((s, r) => s + getRowTotal(r), 0);
   const cashPct = grand > 0 ? (cashTotal / grand * 100) : 0;
-  const badge = document.getElementById('cashRatioBadge');
-  if (grand > 0) {
-    badge.style.display = 'block';
-    badge.textContent = '예수금 ' + cashPct.toFixed(1) + '%';
-    badge.style.color = cashPct >= 30 ? 'var(--accent-green)' : 'var(--accent-red)';
-  } else {
-    badge.style.display = 'none';
+  const cashBlock = document.getElementById('cashBlock');
+  const cashAmtBadge = document.getElementById('cashAmtBadge');
+  const cashRatioBadge = document.getElementById('cashRatioBadge');
+  if (grand > 0 && cashBlock) {
+    cashBlock.style.display = 'block';
+    cashAmtBadge.textContent = fmtW(cashTotal);
+    cashAmtBadge.style.color = 'var(--text-primary)';
+    cashRatioBadge.textContent = cashPct.toFixed(1) + '%';
+    cashRatioBadge.style.color = cashPct >= 30 ? 'var(--accent-green)' : 'var(--accent-red)';
+  } else if (cashBlock) {
+    cashBlock.style.display = 'none';
   }
 
-  // 총 평가손익
+  // 총 평가손익 (RP,ISA,예수금 제외한 투자 종목만)
   const getBuyTotal = r => (Number(r.qty)||0) * (Number(r.avgPrice)||0);
   const getEvalTotal = r => r.currentPrice != null ? (Number(r.qty)||0) * r.currentPrice : getBuyTotal(r);
-  const totalBuy = rows.reduce((s, r) => s + getBuyTotal(r), 0);
-  const totalEval = rows.reduce((s, r) => s + getEvalTotal(r) + (Number(r.cash)||0), 0);
-  const totalPnlAmt = totalEval - totalBuy - rows.reduce((s,r) => s + (Number(r.cash)||0), 0) + rows.filter(r=>!isCashType(r)).reduce((s,r)=>s+(Number(r.cash)||0),0);
-  const totalPnlAmt2 = rows.filter(r => !isCashType(r)).reduce((s, r) => {
-    const bt = getBuyTotal(r), et = getEvalTotal(r);
-    return s + (et - bt);
-  }, 0);
+  const investRows = rows.filter(r => !isFixedType(r));
+  const totalBuy = investRows.reduce((s, r) => s + getBuyTotal(r), 0);
+  const totalPnlAmt2 = investRows.reduce((s, r) => s + (getEvalTotal(r) - getBuyTotal(r)), 0);
+  const investTotal = investRows.reduce((s, r) => s + getEvalTotal(r), 0);
+  const investRatio = grand > 0 ? (investTotal / grand * 100).toFixed(1) : 0;
+
   const pnlBadge = document.getElementById('totalPnlBadge');
-  if (totalBuy > 0) {
+  const pnlBlock = document.getElementById('pnlBlock');
+  const investRatioBadge = document.getElementById('investRatioBadge');
+  if (totalBuy > 0 && pnlBlock) {
     const pnlPct = (totalPnlAmt2 / totalBuy * 100).toFixed(2);
-    pnlBadge.style.display = 'block';
-    pnlBadge.innerHTML = `${totalPnlAmt2 >= 0 ? '+' : ''}${fmtW(totalPnlAmt2)} <span style="font-size:13px">(${pnlPct}%)</span>`;
+    pnlBlock.style.display = 'block';
+    pnlBadge.innerHTML = `${totalPnlAmt2 >= 0 ? '+' : ''}${fmtW(totalPnlAmt2)}`;
     pnlBadge.style.color = totalPnlAmt2 >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-  } else {
-    pnlBadge.style.display = 'none';
+    investRatioBadge.textContent = `(${pnlPct >= 0 ? '+' : ''}${pnlPct}% / 비중 ${investRatio}%)`;
+    investRatioBadge.style.color = totalPnlAmt2 >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+  } else if (pnlBlock) {
+    pnlBlock.style.display = 'none';
   }
 
   // 테이블 하단 합계 행
@@ -1456,7 +1480,7 @@ async function saveToSheet() {
 
   const grand = rows.reduce((s, r) => s + getRowTotal(r), 0);
   const rowData = rows.map(r => [
-    r.broker, r.account, r.type, r.name,
+    r.broker, String(r.account || ''), r.type, r.name,
     r.ticker || resolveTickerByName(r.name, r.type), r.sector,
     r.qty, r.avgPrice, r.currentPrice ?? '', r.cash
   ]);
@@ -1489,7 +1513,7 @@ async function loadFromSheet() {
   const loaded = (res.rows || []).filter(r => r[0]);
   rows = loaded.map((r, i) => ({
     id: Date.now() + i,
-    broker: r[0] || '', account: r[1] || '', type: r[2] || '주식-국내',
+    broker: String(r[0] || ''), account: String(r[1] || ''), type: r[2] || '주식-국내',
     name: r[3] || '', ticker: r[4] || '', sector: r[5] || '',
     qty: Number(r[6]) || 0, avgPrice: Number(r[7]) || 0,
     currentPrice: r[8] !== '' ? Number(r[8]) : null,
