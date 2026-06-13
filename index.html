@@ -1050,7 +1050,7 @@ function updateSummary() {
   document.getElementById('cardCashPct').textContent = grand > 0 ? (totals.cash/grand*100).toFixed(1) + ' %' : '— %';
 
   // 예수금 비중 (RP+발행어음+ISA+예수금 합산)
-  const cashTotal = rows.filter(isCashType).reduce((s, r) => s + getRowTotal(r), 0);
+  const cashTotal = rows.reduce((s, r) => s + (Number(r.cash) || 0), 0);
   const cashPct = grand > 0 ? (cashTotal / grand * 100) : 0;
   const cashBlock = document.getElementById('cashBlock');
   const cashAmtBadge = document.getElementById('cashAmtBadge');
