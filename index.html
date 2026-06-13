@@ -613,7 +613,8 @@
         <option value="RP">RP</option>
         <option value="발행어음">발행어음</option>
         <option value="ISA">ISA</option>
-        <option value="예수금">예수금</option>
+        <option value="예수금(원화)">예수금 (원화)</option>
+        <option value="예수금(달러)">예수금 (달러)</option>
         <option value="기타">기타</option>
       </select>
     </div>
@@ -715,7 +716,7 @@ let lineChart = null;
 let lastTotal = null;
 
 const BROKER_LIST = ['키움', '메리츠', '한국투자', 'KB증권', '미래에셋', '삼성증권', '신한투자', '기타'];
-const TYPE_LIST = ['주식-국내', '주식-미국', '코인', 'RP', '발행어음', 'ISA', '예수금', '기타'];
+const TYPE_LIST = ['주식-국내', '주식-미국', '코인', 'RP', '발행어음', 'ISA', '예수금(원화)', '예수금(달러)', '기타'];
 
 // ═══════════════════════════════════════════════════════════
 // APPS SCRIPT CODE (displayed to user)
@@ -861,15 +862,20 @@ function newRow() {
   };
 }
 
+function isFixedType(r) {
+  // 예수금성 자산 - cash 칸 값을 평가금액으로 사용
+  return ['예수금','예수금(원화)','예수금(달러)','RP','발행어음','ISA','기타'].includes(r.type);
+}
+
 function getRowTotal(r) {
-  if (r.type === '예수금') return Number(r.cash) || 0;
+  if (isFixedType(r)) return Number(r.cash) || 0;
   const qty = Number(r.qty) || 0;
   const cur = r.currentPrice ?? (Number(r.avgPrice) || 0);
   return qty * cur + (Number(r.cash) || 0);
 }
 
 function getRowBuyTotal(r) {
-  if (r.type === '예수금') return Number(r.cash) || 0;
+  if (isFixedType(r)) return Number(r.cash) || 0;
   return (Number(r.qty) || 0) * (Number(r.avgPrice) || 0) + (Number(r.cash) || 0);
 }
 
@@ -895,7 +901,7 @@ function renderTable() {
     const weight = grandTotal > 0 ? rowTotal / grandTotal * 100 : 0;
 
     let priceHtml = '';
-    if (r.type === '예수금' || r.type === 'RP' || r.type === '발행어음' || r.type === 'ISA') {
+    if (isFixedType(r)) {
       priceHtml = '<span class="td-muted">—</span>';
     } else if (r.priceStatus === 'loading') {
       priceHtml = '<span class="price-loading"><span class="spin"></span></span>';
@@ -928,7 +934,7 @@ function renderTable() {
       <td><input type="text" value="${r.avgPrice ? Number(r.avgPrice).toLocaleString('ko-KR') : ''}" placeholder="0" data-field="avgPrice" style="min-width:80px" inputmode="numeric" oninput="fmtInput(this)"></td>
       <td class="td-mono">${buyTotal > 0 ? fmtW(buyTotal) : '—'}</td>
       <td>${priceHtml}</td>
-      <td class="td-mono">${evalTotal != null ? fmtW(evalTotal) : (r.type==='예수금'?fmtW(Number(r.cash)||0):'—')}</td>
+      <td class="td-mono">${evalTotal != null ? fmtW(evalTotal) : (isFixedType(r)?fmtW(Number(r.cash)||0):'—')}</td>
       <td>${pnlHtml}</td>
       <td class="td-mono">${evalTotal != null && buyTotal > 0 ? `<span style="color:${evalTotal-buyTotal>=0?'var(--accent-green)':'var(--accent-red)'}">${evalTotal-buyTotal>=0?'+':''}${fmtW(evalTotal-buyTotal)}</span>` : '—'}</td>
       <td>
@@ -937,7 +943,7 @@ function renderTable() {
           <span class="weight-text">${weight.toFixed(1)}%</span>
         </div>
       </td>
-      <td><input type="number" value="${r.cash||''}" placeholder="0" data-field="cash" style="min-width:80px"></td>
+      <td><input type="text" value="${r.cash ? Number(r.cash).toLocaleString('ko-KR') : ''}" placeholder="0" data-field="cash" style="min-width:80px" inputmode="numeric" oninput="fmtInput(this)"></td>
       <td><button class="btn btn-danger" data-del="${r.id}">✕</button></td>
     `;
 
@@ -987,12 +993,12 @@ function categorize(r) {
   if (t === '주식-국내' || t === '주식-미국') return 'stock';
   if (t === '코인') return 'coin';
   if (t === 'RP' || t === '발행어음' || t === 'ISA') return 'rp';
-  if (t === '예수금') return 'cash';
+  if (t === '예수금' || t === '예수금(원화)' || t === '예수금(달러)') return 'cash';
   return 'cash';
 }
 
 function isCashType(r) {
-  return ['RP','발행어음','ISA','예수금'].includes(r.type);
+  return ['RP','발행어음','ISA','예수금','예수금(원화)','예수금(달러)'].includes(r.type);
 }
 
 function updateSummary() {
@@ -1315,7 +1321,7 @@ function updateCharts() {
       { label:'RP·ISA', color:'#FFB347', val: totals2.rp },
       { label:'예수금', color:'#94A3B8', val: totals2.cash },
     ];
-    donutSummary.innerHTML = cats.map(c => {
+    const rowHtml = cats.map(c => {
       const pct = grandT > 0 ? (c.val/grandT*100).toFixed(1) : '0.0';
       return `<div style="display:flex;align-items:center;gap:8px;white-space:nowrap">
         <span style="color:${c.color};font-size:13px">●</span>
@@ -1324,6 +1330,12 @@ function updateCharts() {
         <span style="color:var(--text-muted);font-family:var(--mono);min-width:42px;text-align:right">${pct}%</span>
       </div>`;
     }).join('');
+    const totalHtml = `<div style="display:flex;align-items:center;gap:8px;white-space:nowrap;border-top:1px solid var(--border-light);margin-top:6px;padding-top:6px">
+      <span style="color:var(--text-primary);font-weight:600">합계</span>
+      <span style="color:var(--accent-blue);font-family:var(--mono);font-weight:600;margin-left:auto">${fmtW(grandT)}</span>
+      <span style="color:var(--text-muted);font-family:var(--mono);min-width:42px;text-align:right">100%</span>
+    </div>`;
+    donutSummary.innerHTML = rowHtml + totalHtml;
   }
 
   // ── 종목별 비중 텍스트 요약
@@ -1332,7 +1344,7 @@ function updateCharts() {
     const grandT2 = rows.reduce((s,r) => s+getRowTotal(r), 0);
     const colors2 = ['#6C8EFF','#00D4AA','#FFB347','#FF4D6D','#A78BFA','#34D399','#FB923C','#60A5FA','#F472B6','#FBBF24','#4ADE80','#E879F9'];
     const priceableRows = rows.filter(r => r.name);
-    stockSummaryEl.innerHTML = priceableRows.map((r, i) => {
+    const stockRowHtml = priceableRows.map((r, i) => {
       const val = getRowTotal(r);
       const pct = grandT2 > 0 ? (val/grandT2*100).toFixed(1) : '0.0';
       const col = colors2[i % colors2.length];
@@ -1343,6 +1355,12 @@ function updateCharts() {
         <span style="color:var(--text-muted);font-family:var(--mono);min-width:42px;text-align:right">${pct}%</span>
       </div>`;
     }).join('');
+    const stockTotalHtml = `<div style="display:flex;align-items:center;gap:8px;white-space:nowrap;border-top:1px solid var(--border-light);margin-top:6px;padding-top:6px">
+      <span style="color:var(--text-primary);font-weight:600">합계</span>
+      <span style="color:var(--accent-blue);font-family:var(--mono);font-weight:600;margin-left:auto">${fmtW(grandT2)}</span>
+      <span style="color:var(--text-muted);font-family:var(--mono);min-width:42px;text-align:right">100%</span>
+    </div>`;
+    stockSummaryEl.innerHTML = stockRowHtml + stockTotalHtml;
   }
 
   // ── 월별 순자산 텍스트 요약
@@ -1378,7 +1396,7 @@ async function refreshPrices() {
   btn.innerHTML = '<span class="spin"></span> 업데이트 중...';
   setStatus('현재가 조회 중...');
 
-  const priceable = rows.filter(r => r.type !== '예수금' && r.type !== 'RP' && r.type !== '발행어음' && r.type !== 'ISA' && r.name);
+  const priceable = rows.filter(r => !isCashType(r) && r.type !== 'RP' && r.type !== '발행어음' && r.type !== 'ISA' && r.name);
   priceable.forEach(r => { r.priceStatus = 'loading'; });
   renderTable();
 
