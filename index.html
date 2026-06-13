@@ -449,7 +449,7 @@
           <div id="totalPnlBadge" style="font-size:22px;font-weight:600;font-family:var(--mono)"></div>
           <div id="investRatioBadge" style="font-size:13px;font-family:var(--mono);color:var(--text-muted)"></div>
         </div>
-        <div id="investAmtBadge" style="font-size:12px;font-family:var(--mono);color:var(--text-dim);margin-top:2px"></div>
+        <div id="investAmtBadge" style="font-size:14px;font-family:var(--mono);color:var(--text-muted);margin-top:4px"></div>
       </div>
       <!-- 예수금 / 비중 -->
       <div id="cashBlock" style="display:none">
@@ -1116,7 +1116,7 @@ function updateSummary() {
     investRatioBadge.style.color = totalPnlAmt2 >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
     const investAmtBadge = document.getElementById('investAmtBadge');
     if (investAmtBadge) {
-      investAmtBadge.textContent = `투자금액 ${fmtW(totalBuy)} → 평가 ${fmtW(investTotal)}`;
+      investAmtBadge.innerHTML = `<span style="color:var(--text-muted)">매입</span> <span style="color:var(--text-primary);font-weight:600">${fmtW(totalBuy)}</span> &nbsp;→&nbsp; <span style="color:var(--text-muted)">평가</span> <span style="color:var(--text-primary);font-weight:600">${fmtW(investTotal)}</span>`;
     }
   } else if (pnlBlock) {
     pnlBlock.style.display = 'none';
