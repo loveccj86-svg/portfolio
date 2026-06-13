@@ -433,7 +433,10 @@
 <div class="top-bar">
   <div class="total-block">
     <div class="total-label">전체 순자산</div>
-    <div class="total-value" id="totalValue">₩ —</div>
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <div class="total-value" id="totalValue">₩ —</div>
+      <div id="cashRatioBadge" style="font-size:22px;font-weight:600;font-family:var(--mono);display:none"></div>
+    </div>
   </div>
   <div class="top-actions">
     <div class="refresh-time" id="refreshTime">마지막 업데이트: —</div>
@@ -931,6 +934,10 @@ function categorize(r) {
   return 'cash';
 }
 
+function isCashType(r) {
+  return ['RP','발행어음','ISA','예수금'].includes(r.type);
+}
+
 function updateSummary() {
   const totals = { stock: 0, coin: 0, rp: 0, cash: 0 };
   let grand = 0;
@@ -957,6 +964,18 @@ function updateSummary() {
   document.getElementById('cardCoinPct').textContent = grand > 0 ? (totals.coin/grand*100).toFixed(1) + ' %' : '— %';
   document.getElementById('cardRpPct').textContent = grand > 0 ? (totals.rp/grand*100).toFixed(1) + ' %' : '— %';
   document.getElementById('cardCashPct').textContent = grand > 0 ? (totals.cash/grand*100).toFixed(1) + ' %' : '— %';
+
+  // 예수금 비중 (RP+발행어음+ISA+예수금 합산)
+  const cashTotal = rows.filter(isCashType).reduce((s, r) => s + getRowTotal(r), 0);
+  const cashPct = grand > 0 ? (cashTotal / grand * 100) : 0;
+  const badge = document.getElementById('cashRatioBadge');
+  if (grand > 0) {
+    badge.style.display = 'block';
+    badge.textContent = '예수금 ' + cashPct.toFixed(1) + '%';
+    badge.style.color = cashPct >= 30 ? 'var(--accent-green)' : 'var(--accent-red)';
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
 function updateCharts() {
