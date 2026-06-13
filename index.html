@@ -437,9 +437,10 @@
 <div class="top-bar">
   <div class="total-block">
     <div class="total-label">전체 순자산</div>
-    <div style="display:flex;align-items:baseline;gap:12px">
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
       <div class="total-value" id="totalValue">₩ —</div>
       <div id="cashRatioBadge" style="font-size:22px;font-weight:600;font-family:var(--mono);display:none"></div>
+      <div id="totalPnlBadge" style="font-size:16px;font-weight:600;font-family:var(--mono);display:none"></div>
     </div>
   </div>
   <div class="top-actions">
@@ -529,6 +530,7 @@
         <th onclick="sortRows('currentPrice')" style="cursor:pointer" title="정렬">현재가 ⇅</th>
         <th onclick="sortRows('evalTotal')" style="cursor:pointer" title="정렬">평가금액 ⇅</th>
         <th onclick="sortRows('pnl')" style="cursor:pointer" title="정렬">수익률 ⇅</th>
+        <th onclick="sortRows('pnlAmt')" style="cursor:pointer" title="정렬">평가손익 ⇅</th>
         <th onclick="sortRows('weight')" style="cursor:pointer" title="정렬">비중 ⇅</th>
         <th onclick="sortRows('cash')" style="cursor:pointer" title="정렬">예수금 ⇅</th>
         <th></th>
@@ -536,6 +538,8 @@
     </thead>
     <tbody id="tableBody">
     </tbody>
+    <tfoot id="tableFooter" style="border-top:2px solid var(--border-light)">
+    </tfoot>
   </table>
 </div>
 
@@ -692,6 +696,7 @@ function sortRows(key) {
       case 'currentPrice': av = a.currentPrice||0; bv = b.currentPrice||0; break;
       case 'evalTotal': av = getEvalTotal(a); bv = getEvalTotal(b); break;
       case 'pnl': av = getPnl(a); bv = getPnl(b); break;
+      case 'pnlAmt': av = getBuyTotal(a)>0 ? getEvalTotal(a)-getBuyTotal(a) : 0; bv = getBuyTotal(b)>0 ? getEvalTotal(b)-getBuyTotal(b) : 0; break;
       case 'weight': av = getRowTotal(a); bv = getRowTotal(b); break;
       case 'cash': av = Number(a.cash)||0; bv = Number(b.cash)||0; break;
       default: av = 0; bv = 0;
@@ -925,6 +930,7 @@ function renderTable() {
       <td>${priceHtml}</td>
       <td class="td-mono">${evalTotal != null ? fmtW(evalTotal) : (r.type==='예수금'?fmtW(Number(r.cash)||0):'—')}</td>
       <td>${pnlHtml}</td>
+      <td class="td-mono">${evalTotal != null && buyTotal > 0 ? `<span style="color:${evalTotal-buyTotal>=0?'var(--accent-green)':'var(--accent-red)'}">${evalTotal-buyTotal>=0?'+':''}${fmtW(evalTotal-buyTotal)}</span>` : '—'}</td>
       <td>
         <div class="weight-bar">
           <div class="weight-fill" style="width:${Math.min(weight,100).toFixed(1)}px"></div>
@@ -1026,6 +1032,48 @@ function updateSummary() {
     badge.style.color = cashPct >= 30 ? 'var(--accent-green)' : 'var(--accent-red)';
   } else {
     badge.style.display = 'none';
+  }
+
+  // 총 평가손익
+  const getBuyTotal = r => (Number(r.qty)||0) * (Number(r.avgPrice)||0);
+  const getEvalTotal = r => r.currentPrice != null ? (Number(r.qty)||0) * r.currentPrice : getBuyTotal(r);
+  const totalBuy = rows.reduce((s, r) => s + getBuyTotal(r), 0);
+  const totalEval = rows.reduce((s, r) => s + getEvalTotal(r) + (Number(r.cash)||0), 0);
+  const totalPnlAmt = totalEval - totalBuy - rows.reduce((s,r) => s + (Number(r.cash)||0), 0) + rows.filter(r=>!isCashType(r)).reduce((s,r)=>s+(Number(r.cash)||0),0);
+  const totalPnlAmt2 = rows.filter(r => !isCashType(r)).reduce((s, r) => {
+    const bt = getBuyTotal(r), et = getEvalTotal(r);
+    return s + (et - bt);
+  }, 0);
+  const pnlBadge = document.getElementById('totalPnlBadge');
+  if (totalBuy > 0) {
+    const pnlPct = (totalPnlAmt2 / totalBuy * 100).toFixed(2);
+    pnlBadge.style.display = 'block';
+    pnlBadge.innerHTML = `${totalPnlAmt2 >= 0 ? '+' : ''}${fmtW(totalPnlAmt2)} <span style="font-size:13px">(${pnlPct}%)</span>`;
+    pnlBadge.style.color = totalPnlAmt2 >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+  } else {
+    pnlBadge.style.display = 'none';
+  }
+
+  // 테이블 하단 합계 행
+  const tfoot = document.getElementById('tableFooter');
+  if (tfoot) {
+    const totalCash = rows.reduce((s, r) => s + (Number(r.cash)||0), 0);
+    const totalPnlPct = totalBuy > 0 ? (totalPnlAmt2 / totalBuy * 100).toFixed(2) : 0;
+    const totalBuyDisplay = rows.reduce((s,r) => s + getBuyTotal(r), 0);
+    const totalEvalDisplay = rows.filter(r=>!isCashType(r)).reduce((s,r) => s + getEvalTotal(r), 0);
+    const pnlColor = totalPnlAmt2 >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+    tfoot.innerHTML = `<tr style="background:var(--bg-input);font-weight:600">
+      <td colspan="8" style="padding:10px;color:var(--text-muted);font-size:12px">합계</td>
+      <td class="td-mono" style="padding:10px"></td>
+      <td class="td-mono" style="padding:10px">${fmtW(totalBuyDisplay)}</td>
+      <td style="padding:10px"></td>
+      <td class="td-mono" style="padding:10px">${fmtW(totalEvalDisplay)}</td>
+      <td style="padding:10px;font-family:var(--mono);color:${pnlColor}">${totalPnlPct >= 0 ? '+' : ''}${totalPnlPct}%</td>
+      <td style="padding:10px;font-family:var(--mono);color:${pnlColor}">${totalPnlAmt2 >= 0 ? '+' : ''}${fmtW(totalPnlAmt2)}</td>
+      <td style="padding:10px"></td>
+      <td class="td-mono" style="padding:10px">${fmtW(totalCash)}</td>
+      <td></td>
+    </tr>`;
   }
 }
 
