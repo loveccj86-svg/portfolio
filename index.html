@@ -844,6 +844,15 @@ function renderTable() {
 
     // events
     tr.querySelectorAll('[data-field]').forEach(el => {
+      el.addEventListener('input', e => {
+        const field = el.dataset.field;
+        if (field === 'avgPrice' || field === 'qty' || field === 'cash' || field === 'currentPrice') {
+          r[field] = Number(el.value.replace(/,/g, '')) || 0;
+          if (field === 'currentPrice') r.priceStatus = 'ok';
+          updateSummary();
+          updateCharts();
+        }
+      });
       el.addEventListener('change', e => {
         const field = el.dataset.field;
         if (field === 'avgPrice' || field === 'qty' || field === 'cash' || field === 'currentPrice') {
@@ -853,14 +862,10 @@ function renderTable() {
           r[field] = el.type === 'number' ? Number(el.value) : el.value;
         }
         if (field === 'name' || field === 'type') {
-          // re-resolve ticker silently
           renderTable();
-          updateSummary();
-          updateCharts();
-        } else {
-          updateSummary();
-          updateCharts();
         }
+        updateSummary();
+        updateCharts();
       });
     });
 
