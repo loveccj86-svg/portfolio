@@ -458,6 +458,11 @@
           <div id="cashRatioBadge" style="font-size:13px;font-weight:600;font-family:var(--mono)"></div>
         </div>
       </div>
+      <!-- 대출 -->
+      <div id="loanBlock" style="display:none">
+        <div class="total-label">대출</div>
+        <div id="loanAmtBadge" style="font-size:22px;font-weight:600;font-family:var(--mono);color:var(--accent-red)"></div>
+      </div>
     </div>
   </div>
   <div class="top-actions">
@@ -632,6 +637,7 @@
         <option value="ISA">ISA</option>
         <option value="예수금(원화)">예수금 (원화)</option>
         <option value="예수금(달러)">예수금 (달러)</option>
+        <option value="대출">대출 (차감)</option>
         <option value="기타">기타</option>
       </select>
     </div>
@@ -733,7 +739,7 @@ let lineChart = null;
 let lastTotal = null;
 
 const BROKER_LIST = ['키움', '메리츠', '한국투자', 'KB증권', '미래에셋', '삼성증권', '신한투자', '기타'];
-const TYPE_LIST = ['주식-국내', '주식-미국', '코인', 'RP', '발행어음', 'ISA', '예수금(원화)', '예수금(달러)', '기타'];
+const TYPE_LIST = ['주식-국내', '주식-미국', '코인', 'RP', '발행어음', 'ISA', '예수금(원화)', '예수금(달러)', '대출', '기타'];
 
 // ═══════════════════════════════════════════════════════════
 // APPS SCRIPT CODE (displayed to user)
@@ -881,10 +887,11 @@ function newRow() {
 
 function isFixedType(r) {
   // 예수금성 자산 - cash 칸 값을 평가금액으로 사용
-  return ['예수금','예수금(원화)','예수금(달러)','RP','발행어음','ISA','기타'].includes(r.type);
+  return ['예수금','예수금(원화)','예수금(달러)','RP','발행어음','ISA','대출','기타'].includes(r.type);
 }
 
 function getRowTotal(r) {
+  if (r.type === '대출') return -(Number(r.cash) || 0);
   if (isFixedType(r)) return Number(r.cash) || 0;
   const qty = Number(r.qty) || 0;
   const cur = r.currentPrice ?? (Number(r.avgPrice) || 0);
@@ -1015,6 +1022,7 @@ function categorize(r) {
   if (t === '코인') return 'coin';
   if (t === 'RP' || t === '발행어음' || t === 'ISA') return 'rp';
   if (t === '예수금' || t === '예수금(원화)' || t === '예수금(달러)') return 'cash';
+  if (t === '대출') return 'loan';
   return 'cash';
 }
 
@@ -1023,7 +1031,7 @@ function isCashType(r) {
 }
 
 function updateSummary() {
-  const totals = { stock: 0, coin: 0, rp: 0, cash: 0 };
+  const totals = { stock: 0, coin: 0, rp: 0, cash: 0, loan: 0 };
   let grand = 0;
   rows.forEach(r => {
     const v = getRowTotal(r);
@@ -1063,6 +1071,19 @@ function updateSummary() {
     cashRatioBadge.style.color = cashPct >= 30 ? 'var(--accent-green)' : 'var(--accent-red)';
   } else if (cashBlock) {
     cashBlock.style.display = 'none';
+  }
+
+  // 대출 배지
+  const loanTotal = rows.filter(r => r.type === '대출').reduce((s, r) => s + (Number(r.cash)||0), 0);
+  const loanBlock = document.getElementById('loanBlock');
+  const loanAmtBadge = document.getElementById('loanAmtBadge');
+  if (loanBlock) {
+    if (loanTotal > 0) {
+      loanBlock.style.display = 'block';
+      loanAmtBadge.textContent = '-' + fmtW(loanTotal);
+    } else {
+      loanBlock.style.display = 'none';
+    }
   }
 
   // 총 평가손익 (RP,ISA,예수금 제외한 투자 종목만)
@@ -1112,7 +1133,7 @@ function updateSummary() {
 }
 
 function updateCharts() {
-  const totals = { stock: 0, coin: 0, rp: 0, cash: 0 };
+  const totals = { stock: 0, coin: 0, rp: 0, cash: 0, loan: 0 };
   rows.forEach(r => { totals[categorize(r)] += getRowTotal(r); });
   const totals2 = totals; // alias for summary section
 
@@ -1371,24 +1392,65 @@ function updateCharts() {
   if (stockSummaryEl) {
     const grandT2 = rows.reduce((s,r) => s+getRowTotal(r), 0);
     const colors2 = ['#6C8EFF','#00D4AA','#FFB347','#FF4D6D','#A78BFA','#34D399','#FB923C','#60A5FA','#F472B6','#FBBF24','#4ADE80','#E879F9'];
-    const priceableRows = rows.filter(r => r.name);
-    const stockRowHtml = priceableRows.map((r, i) => {
+
+    // 투자종목 (주식/코인)
+    const investRows = rows.filter(r => r.name && !isFixedType(r) && r.type !== '대출');
+    // 예수금성 자산 (RP, ISA, 예수금 + 대출 포함)
+    const cashRows = rows.filter(r => r.name && (isFixedType(r) || r.type === '대출'));
+    // 대출 (별도 표시용)
+    const loanRows = rows.filter(r => r.name && r.type === '대출');
+
+    const makeRow = (r, i, total) => {
       const val = getRowTotal(r);
-      const pct = grandT2 > 0 ? (val/grandT2*100).toFixed(1) : '0.0';
+      const pct = total > 0 ? (Math.abs(val)/Math.abs(total)*100).toFixed(1) : '0.0';
       const col = colors2[i % colors2.length];
+      const isLoan = r.type === '대출';
       return `<div style="display:flex;align-items:center;gap:8px;white-space:nowrap">
-        <span style="color:${col};font-size:13px">●</span>
+        <span style="color:${isLoan ? 'var(--accent-red)' : col};font-size:13px">●</span>
         <span style="color:var(--text-muted)">${r.name}</span>
-        <span style="color:var(--text-primary);font-family:var(--mono);margin-left:auto">${fmtW(val)}</span>
+        <span style="color:${isLoan ? 'var(--accent-red)' : 'var(--text-primary)'};font-family:var(--mono);margin-left:auto">${isLoan ? '-' : ''}${fmtW(Math.abs(val))}</span>
         <span style="color:var(--text-muted);font-family:var(--mono);min-width:42px;text-align:right">${pct}%</span>
       </div>`;
-    }).join('');
-    const stockTotalHtml = `<div style="display:flex;align-items:center;gap:8px;white-space:nowrap;border-top:1px solid var(--border-light);margin-top:6px;padding-top:6px">
-      <span style="color:var(--text-primary);font-weight:600">합계</span>
-      <span style="color:var(--accent-blue);font-family:var(--mono);font-weight:600;margin-left:auto">${fmtW(grandT2)}</span>
+    };
+
+    // 투자종목 섹션
+    const investTotal = investRows.reduce((s,r) => s+getRowTotal(r), 0);
+    const investPct = grandT2 > 0 ? (investTotal/grandT2*100).toFixed(1) : '0.0';
+    let html = '';
+    if (investRows.length > 0) {
+      html += `<div style="font-size:10px;color:var(--accent-blue);font-weight:600;letter-spacing:0.06em;margin-bottom:4px">▸ 투자종목</div>`;
+      html += investRows.map((r,i) => makeRow(r, i, grandT2)).join('');
+      html += `<div style="display:flex;gap:8px;white-space:nowrap;border-top:1px solid var(--border-light);margin:4px 0;padding-top:4px;font-size:11px">
+        <span style="color:var(--text-muted)">소계</span>
+        <span style="color:var(--accent-blue);font-family:var(--mono);margin-left:auto">${fmtW(investTotal)}</span>
+        <span style="color:var(--text-muted);font-family:var(--mono);min-width:42px;text-align:right">${investPct}%</span>
+      </div>`;
+    }
+
+    // 예수금성 자산 섹션
+    const cashT = cashRows.reduce((s,r) => s+getRowTotal(r), 0);
+    const cashPct2 = grandT2 > 0 ? (cashT/grandT2*100).toFixed(1) : '0.0';
+    if (cashRows.length > 0) {
+      html += `<div style="font-size:10px;color:var(--accent-yellow);font-weight:600;letter-spacing:0.06em;margin-bottom:4px;margin-top:8px">▸ 예수금·RP·ISA·대출</div>`;
+      html += cashRows.map((r,i) => makeRow(r, i+investRows.length, grandT2)).join('');
+      const loanT = loanRows.reduce((s,r) => s+(Number(r.cash)||0), 0);
+      const netCash = cashT - loanT;
+      const netCashPct = grandT2 > 0 ? (netCash/grandT2*100).toFixed(1) : '0.0';
+      html += `<div style="display:flex;gap:8px;white-space:nowrap;border-top:1px solid var(--border-light);margin:4px 0;padding-top:4px;font-size:11px">
+        <span style="color:var(--text-muted)">소계 (대출차감)</span>
+        <span style="color:var(--accent-yellow);font-family:var(--mono);margin-left:auto">${fmtW(netCash)}</span>
+        <span style="color:var(--text-muted);font-family:var(--mono);min-width:42px;text-align:right">${netCashPct}%</span>
+      </div>`;
+    }
+
+    // 전체 합계
+    html += `<div style="display:flex;align-items:center;gap:8px;white-space:nowrap;border-top:2px solid var(--border-light);margin-top:6px;padding-top:6px;font-weight:600">
+      <span style="color:var(--text-primary)">합계</span>
+      <span style="color:var(--accent-blue);font-family:var(--mono);margin-left:auto">${fmtW(grandT2)}</span>
       <span style="color:var(--text-muted);font-family:var(--mono);min-width:42px;text-align:right">100%</span>
     </div>`;
-    stockSummaryEl.innerHTML = stockRowHtml + stockTotalHtml;
+
+    stockSummaryEl.innerHTML = html;
   }
 
   // ── 월별 순자산 텍스트 요약
