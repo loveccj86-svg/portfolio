@@ -1151,10 +1151,23 @@ function updateCharts() {
   const totals2 = totals; // alias for summary section
 
   // Donut
+  // 대출은 예수금에서 차감 (순액 표시)
+  const loanAmt = Math.abs(totals.loan || 0);
+  const netCashForDonut = Math.max(0, totals.cash - loanAmt);
+  const netRpForDonut = totals.rp > loanAmt - totals.cash
+    ? totals.rp - Math.max(0, loanAmt - totals.cash)
+    : 0;
+  // 간단하게: 예수금+RP 합산에서 대출 차감
+  const totalCashRp = totals.rp + totals.cash;
+  const netCashRp = Math.max(0, totalCashRp - loanAmt);
+  const rpShare = totalCashRp > 0 ? totals.rp / totalCashRp : 0;
+  const netRp = netCashRp * rpShare;
+  const netCash = netCashRp * (1 - rpShare);
+
   const donutData = {
-    labels: ['주식', '코인', 'RP·발행어음·ISA', '예수금'],
+    labels: ['주식', '코인', 'RP·발행어음·ISA', '예수금(대출차감)'],
     datasets: [{
-      data: [totals.stock, totals.coin, totals.rp, totals.cash],
+      data: [totals.stock, totals.coin, netRp, netCash],
       backgroundColor: ['#6C8EFF', '#00D4AA', '#FFB347', '#94A3B8'],
       borderWidth: 0,
       hoverOffset: 6
