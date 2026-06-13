@@ -801,12 +801,11 @@ function renderTable() {
       priceHtml = '<span class="td-muted">—</span>';
     } else if (r.priceStatus === 'loading') {
       priceHtml = '<span class="price-loading"><span class="spin"></span></span>';
-    } else if (r.priceStatus === 'err') {
-      priceHtml = '<span class="price-err">조회 실패</span>';
-    } else if (r.currentPrice != null) {
-      priceHtml = `<span class="price-ok">${fmt(r.currentPrice)}</span>`;
     } else {
-      priceHtml = '<span class="td-muted">—</span>';
+      // 수동 입력 가능한 input (자동조회 실패해도 직접 입력 가능)
+      const priceVal = r.currentPrice != null ? Number(r.currentPrice).toLocaleString('ko-KR') : '';
+      const priceColor = r.priceStatus === 'err' ? 'color:var(--accent-red)' : '';
+      priceHtml = `<input type="text" value="${priceVal}" placeholder="직접입력" data-field="currentPrice" inputmode="numeric" oninput="fmtInput(this)" style="min-width:80px;${priceColor}">`;
     }
 
     const pnlHtml = pnlPct != null
@@ -847,8 +846,9 @@ function renderTable() {
     tr.querySelectorAll('[data-field]').forEach(el => {
       el.addEventListener('change', e => {
         const field = el.dataset.field;
-        if (field === 'avgPrice' || field === 'qty' || field === 'cash') {
+        if (field === 'avgPrice' || field === 'qty' || field === 'cash' || field === 'currentPrice') {
           r[field] = Number(el.value.replace(/,/g, '')) || 0;
+          if (field === 'currentPrice') r.priceStatus = 'ok';
         } else {
           r[field] = el.type === 'number' ? Number(el.value) : el.value;
         }
