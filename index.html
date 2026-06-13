@@ -826,7 +826,7 @@ function renderTable() {
       <td><input type="text" value="${esc(r.name)}" placeholder="종목명" data-field="name" style="min-width:100px"></td>
       <td class="td-mono td-muted" style="font-size:11px">${resolvedTicker || '—'}</td>
       <td><input type="text" value="${esc(r.sector)}" placeholder="반도체" data-field="sector" style="min-width:70px"></td>
-      <td><input type="number" value="${r.qty||''}" placeholder="0" data-field="qty" style="min-width:60px"></td>
+      <td><input type="text" value="${r.qty ? r.qty.toLocaleString('ko-KR', {maximumFractionDigits:8}) : ''}" placeholder="0" data-field="qty" style="min-width:60px" inputmode="decimal" oninput="fmtInput(this)"></td>
       <td><input type="text" value="${r.avgPrice ? Number(r.avgPrice).toLocaleString('ko-KR') : ''}" placeholder="0" data-field="avgPrice" style="min-width:80px" inputmode="numeric" oninput="fmtInput(this)"></td>
       <td class="td-mono">${buyTotal > 0 ? fmtW(buyTotal) : '—'}</td>
       <td>${priceHtml}</td>
@@ -847,7 +847,7 @@ function renderTable() {
       el.addEventListener('input', e => {
         const field = el.dataset.field;
         if (field === 'avgPrice' || field === 'qty' || field === 'cash' || field === 'currentPrice') {
-          r[field] = Number(el.value.replace(/,/g, '')) || 0;
+          r[field] = parseFloat(el.value.replace(/,/g, '')) || 0;
           if (field === 'currentPrice') r.priceStatus = 'ok';
           updateSummary();
           updateCharts();
@@ -856,7 +856,7 @@ function renderTable() {
       el.addEventListener('change', e => {
         const field = el.dataset.field;
         if (field === 'avgPrice' || field === 'qty' || field === 'cash' || field === 'currentPrice') {
-          r[field] = Number(el.value.replace(/,/g, '')) || 0;
+          r[field] = parseFloat(el.value.replace(/,/g, '')) || 0;
           if (field === 'currentPrice') r.priceStatus = 'ok';
         } else {
           r[field] = el.type === 'number' ? Number(el.value) : el.value;
@@ -1178,14 +1178,19 @@ function fmtW(n) {
 function esc(s) { return (String(s||'')).replace(/"/g, '&quot;'); }
 
 function fmtInput(el) {
-  // Format input as thousand-separated while typing
-  const raw = el.value.replace(/[^0-9]/g, '');
-  el.value = raw ? Number(raw).toLocaleString('ko-KR') : '';
+  // 소수점 허용 (코인 수량 등)
+  const raw = el.value.replace(/[^0-9.]/g, '');
+  // 소수점 두 개 이상 방지
+  const parts = raw.split('.');
+  if (parts.length > 2) return;
+  // 정수부만 천단위 구분
+  parts[0] = parts[0] ? Number(parts[0]).toLocaleString('ko-KR') : '';
+  el.value = parts.length === 2 ? parts[0] + '.' + parts[1] : parts[0];
 }
 
 function parseInput(id) {
   const v = document.getElementById(id).value.replace(/,/g, '');
-  return Number(v) || 0;
+  return parseFloat(v) || 0;
 }
 
 function setStatus(msg) {
